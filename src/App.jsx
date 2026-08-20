@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 const PAINTS = [
-  { name: 'Red', rgb: [255, 0, 0], swatch: 'bg-red-500' },
-  { name: 'Yellow', rgb: [255, 220, 0], swatch: 'bg-yellow-400' },
-  { name: 'Blue', rgb: [0, 80, 255], swatch: 'bg-blue-600' },
-  { name: 'White', rgb: [255, 255, 255], swatch: 'bg-white border-2 border-gray-300' },
-  { name: 'Black', rgb: [0, 0, 0], swatch: 'bg-black' },
+  { name: 'Red', rgb: [255, 0, 0], swatch: 'bg-red-500', border: 'border-red-800' },
+  { name: 'Yellow', rgb: [255, 220, 0], swatch: 'bg-yellow-400', border: 'border-yellow-700' },
+  { name: 'Blue', rgb: [0, 80, 255], swatch: 'bg-blue-600', border: 'border-blue-900' },
+  { name: 'White', rgb: [255, 255, 255], swatch: 'bg-white', border: 'border-gray-400' },
+  { name: 'Black', rgb: [0, 0, 0], swatch: 'bg-black', border: 'border-gray-600' },
 ];
 
 const DROPS_PER_ROUND = 8;
@@ -40,6 +40,57 @@ function matchScore(a, b) {
   return Math.max(0, Math.round(100 - (dist / MAX_DIST) * 100));
 }
 
+// --- Sound effects via Web Audio API (no files needed) ---
+function useSounds() {
+  const ctxRef = useRef(null);
+
+  function getCtx() {
+    if (!ctxRef.current) {
+      ctxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return ctxRef.current;
+  }
+
+  function playTone(freq, duration, type = 'sine', volume = 0.15) {
+    const ctx = getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(volume, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  return {
+    playDrop: () => playTone(500, 0.12, 'triangle', 0.12),
+    playUndo: () => playTone(300, 0.1, 'sine', 0.1),
+    playSubmit: (score) => {
+      // higher score = happier chord
+      if (score >= 80) {
+        playTone(523, 0.15, 'triangle');
+        setTimeout(() => playTone(659, 0.15, 'triangle'), 100);
+        setTimeout(() => playTone(784, 0.25, 'triangle'), 200);
+      } else if (score >= 50) {
+        playTone(440, 0.15, 'triangle');
+        setTimeout(() => playTone(554, 0.2, 'triangle'), 120);
+      } else {
+        playTone(200, 0.3, 'sawtooth', 0.1);
+      }
+    },
+    playNextRound: () => playTone(660, 0.15, 'sine'),
+    playGameOver: () => {
+      playTone(523, 0.15, 'triangle');
+      setTimeout(() => playTone(659, 0.15, 'triangle'), 150);
+      setTimeout(() => playTone(784, 0.15, 'triangle'), 300);
+      setTimeout(() => playTone(1047, 0.4, 'triangle'), 450);
+    },
+  };
+}
+
 export default function App() {
   const [target, setTarget] = useState(randomColor());
   const [drops, setDrops] = useState([]);
@@ -47,6 +98,7 @@ export default function App() {
   const [totalScore, setTotalScore] = useState(0);
   const [roundResult, setRoundResult] = useState(null);
   const [gameOver, setGameOver] = useState(false);
+  const sounds = useSounds();
 
   const mix = mixOf(drops);
   const dropsLeft = DROPS_PER_ROUND - drops.length;
@@ -54,11 +106,13 @@ export default function App() {
   function addDrop(rgb) {
     if (dropsLeft <= 0 || roundResult) return;
     setDrops([...drops, rgb]);
+    sounds.playDrop();
   }
 
   function undoDrop() {
     if (drops.length === 0 || roundResult) return;
     setDrops(drops.slice(0, -1));
+    sounds.playUndo();
   }
 
   function submitRound() {
@@ -66,17 +120,20 @@ export default function App() {
     const score = matchScore(mix, target);
     setRoundResult(score);
     setTotalScore((s) => s + score);
+    sounds.playSubmit(score);
   }
 
   function nextRound() {
     if (round >= TOTAL_ROUNDS) {
       setGameOver(true);
+      sounds.playGameOver();
       return;
     }
     setRound(round + 1);
     setTarget(randomColor());
     setDrops([]);
     setRoundResult(null);
+    sounds.playNextRound();
   }
 
   function restart() {
@@ -137,7 +194,7 @@ export default function App() {
                 onClick={() => addDrop(p.rgb)}
                 disabled={dropsLeft <= 0 || !!roundResult}
                 title={p.name}
-                className={`w-14 h-14 rounded-full ${p.swatch} hover:scale-110 transition disabled:opacity-30 disabled:hover:scale-100`}
+                className={`w-14 h-14 rounded-full border-4 ${p.border} ${p.swatch} hover:scale-110 transition disabled:opacity-30 disabled:hover:scale-100`}
               />
             ))}
           </div>
