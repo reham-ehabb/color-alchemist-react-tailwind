@@ -69,7 +69,6 @@ function useSounds() {
     playDrop: () => playTone(500, 0.12, 'triangle', 0.12),
     playUndo: () => playTone(300, 0.1, 'sine', 0.1),
     playSubmit: (score) => {
-      // higher score = happier chord
       if (score >= 80) {
         playTone(523, 0.15, 'triangle');
         setTimeout(() => playTone(659, 0.15, 'triangle'), 100);
@@ -88,10 +87,12 @@ function useSounds() {
       setTimeout(() => playTone(784, 0.15, 'triangle'), 300);
       setTimeout(() => playTone(1047, 0.4, 'triangle'), 450);
     },
+    playReset: () => playTone(350, 0.15, 'sine', 0.1),
   };
 }
 
 export default function App() {
+  const [screen, setScreen] = useState('welcome'); // welcome | playing
   const [target, setTarget] = useState(randomColor());
   const [drops, setDrops] = useState([]);
   const [round, setRound] = useState(1);
@@ -102,6 +103,16 @@ export default function App() {
 
   const mix = mixOf(drops);
   const dropsLeft = DROPS_PER_ROUND - drops.length;
+
+  function startGame() {
+    setScreen('playing');
+    setTarget(randomColor());
+    setDrops([]);
+    setRound(1);
+    setTotalScore(0);
+    setRoundResult(null);
+    setGameOver(false);
+  }
 
   function addDrop(rgb) {
     if (dropsLeft <= 0 || roundResult) return;
@@ -136,13 +147,40 @@ export default function App() {
     sounds.playNextRound();
   }
 
-  function restart() {
-    setRound(1);
+  function resetGame() {
     setTarget(randomColor());
     setDrops([]);
+    setRound(1);
     setTotalScore(0);
     setRoundResult(null);
     setGameOver(false);
+    sounds.playReset();
+  }
+
+  function backToWelcome() {
+    setScreen('welcome');
+  }
+
+  if (screen === 'welcome') {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-6 p-6 text-center">
+        <div className="flex gap-2">
+          <div className="w-10 h-10 rounded-full bg-red-500 border-4 border-red-800" />
+          <div className="w-10 h-10 rounded-full bg-blue-600 border-4 border-blue-900" />
+          <div className="w-10 h-10 rounded-full bg-yellow-400 border-4 border-yellow-700" />
+        </div>
+        <h1 className="text-4xl font-bold text-white">Color Alchemist</h1>
+        <p className="text-gray-300 max-w-xs">
+          Mix paint drops to match the target color. {DROPS_PER_ROUND} drops per round, {TOTAL_ROUNDS} rounds — how close can you get?
+        </p>
+        <button
+          onClick={startGame}
+          className="px-8 py-3 bg-blue-500 text-white rounded-lg font-semibold text-lg hover:bg-blue-600 transition"
+        >
+          Start
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -155,18 +193,34 @@ export default function App() {
           <p className="text-5xl font-bold text-green-400">
             {totalScore} / {TOTAL_ROUNDS * 100}
           </p>
-          <button
-            onClick={restart}
-            className="px-6 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition"
-          >
-            Play Again
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={resetGame}
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition"
+            >
+              Play Again
+            </button>
+            <button
+              onClick={backToWelcome}
+              className="px-6 py-2 bg-gray-700 text-white rounded-lg font-semibold hover:bg-gray-600 transition"
+            >
+              Main Menu
+            </button>
+          </div>
         </div>
       ) : (
         <>
-          <p className="text-gray-300">
-            Round {round} / {TOTAL_ROUNDS} &nbsp;•&nbsp; Score: {totalScore}
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-gray-300">
+              Round {round} / {TOTAL_ROUNDS} &nbsp;•&nbsp; Score: {totalScore}
+            </p>
+            <button
+              onClick={resetGame}
+              className="px-3 py-1 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+            >
+              Reset
+            </button>
+          </div>
 
           <div className="flex gap-8 items-center">
             <div className="flex flex-col items-center gap-2">
